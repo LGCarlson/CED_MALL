@@ -8,62 +8,101 @@ output: html_document
 ## Banding codes
 
 _age:_
-0 unknown
-1 AHY
-2 HY
-3 Juvenile
-4 Local
-5 SY
-6 ASY
+
+* 0 unknown
+
+* 1 AHY
+
+* 2 HY
+
+* 3 Juvenile
+
+* 4 Local
+
+* 5 SY
+
+* 6 ASY
 
 _sex:_
-0 unknown
-4 M
-5 F
+
+* 0 unknown
+
+* 4 M
+
+* 5 F
 
 _b_dir:_
-0 NW quarter of the earth
+
+* 0 NW quarter of the earth
 
 _b_flyway:_
-2 Mississippi
-3 Central
-6 Canada
+
+* 2 Mississippi
+
+* 3 Central
+
+* 6 Canada
 
 _b_region:_
+
 [codes here](https://www.pwrc.usgs.gov/BBL/MANUAL/reg.cfm#region)
 Canadian categories to keep: (US Flyways okay)
-43 Northwest Territories
-40 Nunavut
-04 Alberta
-79 Saskatchewan
-45 Manitoba
-68 Ontario
+
+* 43 Northwest Territories
+
+* 40 Nunavut
+
+* 04 Alberta
+
+* 79 Saskatchewan
+
+* 45 Manitoba
+
+* 68 Ontario
 
 _b_day_code:_
-0 unknown
-1 Day 1-5
-2 Day 6-10
-3 Day 11-15
-4 Day 16-20
-5 Day 21-25
-6 Day >26
+
+* 0 unknown
+
+* 1 Day 1-5
+
+* 2 Day 6-10
+
+* 3 Day 11-15
+
+* 4 Day 16-20
+
+* 5 Day 21-25
+
+* 6 Day >26
 
 _status:_
-2 transported
-3 normal wild
-4 hand reared
-5 sick, injured, deformity
-6,7,8 experimental, etc
+
+* 2 transported
+
+* 3 normal wild
+
+* 4 hand reared
+
+* 5 sick, injured, deformity
+
+* 6,7,8 experimental, etc
 
 _sp_num:_
-1320 MALL
+
+* 1320 MALL
 
 _ai_vai:_
+
 Categories to keep:
-Federal numbered metal band only. 
-Captured by spotlighting. 
-Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.
-Miscellaneous band, Federal band, plus auxiliary marker(s). 
+
+* Federal numbered metal band only. 
+
+* Captured by spotlighting. 
+
+* Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.
+
+* Miscellaneous band, Federal band, plus auxiliary marker(s). 
 
 ## Setup
 

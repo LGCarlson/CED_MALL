@@ -9,93 +9,132 @@ output: html_document
 ## Encounter codes
 
 _age:_
-0 unknown
-1 AHY
-2 HY
-3 Juvenile
-4 Local
-5 SY
-6 ASY
+
+* 0 unknown
+
+* 1 AHY
+
+* 2 HY
+
+* 3 Juvenile
+
+* 4 Local
+
+* 5 SY
+
+* 6 ASY
 
 _sex:_
-0 unknown
-4 M
-5 F
+
+* 0 unknown
+
+* 4 M
+
+* 5 F
 
 _b_flyway / _r_flyway:_
-2 Mississippi
-3 Central
-6 Canada
+
+* 2 Mississippi
+
+* 3 Central
+
+* 6 Canada
 
 _b_region / r_region:_
 [codes here](https://www.pwrc.usgs.gov/BBL/MANUAL/reg.cfm#region)
 Canadian categories to keep: (US Flyways okay)
-43 Northwest Territories
-40 Nunavut
-04 Alberta
-79 Saskatchewan
-45 Manitoba
-68 Ontario
+
+* 43 Northwest Territories
+
+* 40 Nunavut
+
+* 04 Alberta
+
+* 79 Saskatchewan
+
+* 45 Manitoba
+
+* 68 Ontario
 
 _b_month / r_month:_
-1-12 or
-82 Summer (06/21/YY thru 09/21/YY)
-83 Spring (03/20/YY thru 06/20/YY)
-92 Winter (12/21/YY-1 thru 03/19/YY)
-93 Fall (09/22/YY thru 12/20/YY)
-94 Hunting Season (09/01/YY thru 03/31/YY+1)
-99 Unknown month and day of banding or encounter
+
+* 1-12 or
+
+* 82 Summer (06/21/YY thru 09/21/YY)
+
+* 83 Spring (03/20/YY thru 06/20/YY)
+
+* 92 Winter (12/21/YY-1 thru 03/19/YY)
+
+* 93 Fall (09/22/YY thru 12/20/YY)
+
+* 94 Hunting Season (09/01/YY thru 03/31/YY+1)
+
+* 99 Unknown month and day of banding or encounter
 
 _b_day / r_day:_
-1-31 or
-41 1st ten days in month
-42 2nd ten days in month
-43 3rd ten days in month
-45 encountered during special hunting seasons
-51-81 Encounter letter date or postmark date (plus 50)
-99 Unknown day of banding or encounter
+
+* 1-31 or
+
+* 41 1st ten days in month
+
+* 42 2nd ten days in month
+
+* 43 3rd ten days in month
+
+* 45 encountered during special hunting seasons
+
+* 51-81 Encounter letter date or postmark date (plus 50)
+
+* 99 Unknown day of banding or encounter
 
 _how_obt:_
-1 Shot
+
+* 1 Shot
 
 _hunt_season_surv:_
-number of hunting seasons survived (dbl)
+
+* number of hunting seasons survived (dbl)
 
 _pres_cond:_
+
+Categories to keep:
+
 Code Bird condition  Band status
-00	UNKNOWN	UNKNOWN
-01	UNKNOWN	LEFT ON BIRD
-02	UNKNOWN	REMOVED
-03	DEAD	UNKNOWN
-04	DEAD	LEFT ON BIRD
-05	DEAD	REMOVED
-06	ALIVE - RELEASED	UNKNOWN
-07	ALIVE - RELEASED	LEFT ON BIRD
-08	ALIVE - RELEASED	REMOVED
-09	ALIVE - IN CAPTIVITY	UNKNOWN
-10	ALIVE - IN CAPTIVITY	LEFT ON BIRD
-11	ALIVE - IN CAPTIVITY	REMOVED
-12	ALIVE - UNKNOWN	UNKNOWN
-13	ALIVE - UNKNOWN	LEFT ON BIRD
-14	ALIVE - UNKNOWN	REMOVED
--Keep 3,4,5
+
+* 03	DEAD	UNKNOWN
+
+* 04	DEAD	LEFT ON BIRD
+
+* 05	DEAD	REMOVED
 
 _status:_
-2 transported
-3 normal wild
-4 hand reared
-5 sick, injured, deformity
-6,7,8 experimental, etc
+
+* 2 transported
+
+* 3 normal wild
+
+* 4 hand reared
+
+* 5 sick, injured, deformity
+
+* 6,7,8 experimental, etc
 
 _sp_num:_
-1320 MALL
+
+* 1320 MALL
 
 _ai_vai:_
-Categories to keep:
-Federal numbered metal band only. 
-Captured by spotlighting. 
-Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.
-Miscellaneous band, Federal band, plus auxiliary marker(s). 
+
+* Categories to keep:
+
+* Federal numbered metal band only. 
+
+* Captured by spotlighting. 
+
+* Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.
+
+* Miscellaneous band, Federal band, plus auxiliary marker(s). 
 
 
 ## Setup
