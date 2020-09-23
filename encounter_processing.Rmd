@@ -1,0 +1,306 @@
+---
+title: "Encounter processing"
+author: "LGCarlson"
+date: "9/15/2020"
+output: html_document
+---
+
+
+## Encounter codes
+
+_age:_
+0 unknown
+1 AHY
+2 HY
+3 Juvenile
+4 Local
+5 SY
+6 ASY
+
+_sex:_
+0 unknown
+4 M
+5 F
+
+_b_flyway / _r_flyway:_
+2 Mississippi
+3 Central
+6 Canada
+
+_b_region / r_region:_
+[codes here](https://www.pwrc.usgs.gov/BBL/MANUAL/reg.cfm#region)
+Canadian categories to keep: (US Flyways okay)
+43 Northwest Territories
+40 Nunavut
+04 Alberta
+79 Saskatchewan
+45 Manitoba
+68 Ontario
+
+_b_month / r_month:_
+1-12 or
+82 Summer (06/21/YY thru 09/21/YY)
+83 Spring (03/20/YY thru 06/20/YY)
+92 Winter (12/21/YY-1 thru 03/19/YY)
+93 Fall (09/22/YY thru 12/20/YY)
+94 Hunting Season (09/01/YY thru 03/31/YY+1)
+99 Unknown month and day of banding or encounter
+
+_b_day / r_day:_
+1-31 or
+41 1st ten days in month
+42 2nd ten days in month
+43 3rd ten days in month
+45 encountered during special hunting seasons
+51-81 Encounter letter date or postmark date (plus 50)
+99 Unknown day of banding or encounter
+
+_how_obt:_
+1 Shot
+
+_hunt_season_surv:_
+number of hunting seasons survived (dbl)
+
+_pres_cond:_
+Code Bird condition  Band status
+00	UNKNOWN	UNKNOWN
+01	UNKNOWN	LEFT ON BIRD
+02	UNKNOWN	REMOVED
+03	DEAD	UNKNOWN
+04	DEAD	LEFT ON BIRD
+05	DEAD	REMOVED
+06	ALIVE - RELEASED	UNKNOWN
+07	ALIVE - RELEASED	LEFT ON BIRD
+08	ALIVE - RELEASED	REMOVED
+09	ALIVE - IN CAPTIVITY	UNKNOWN
+10	ALIVE - IN CAPTIVITY	LEFT ON BIRD
+11	ALIVE - IN CAPTIVITY	REMOVED
+12	ALIVE - UNKNOWN	UNKNOWN
+13	ALIVE - UNKNOWN	LEFT ON BIRD
+14	ALIVE - UNKNOWN	REMOVED
+-Keep 3,4,5
+
+_status:_
+2 transported
+3 normal wild
+4 hand reared
+5 sick, injured, deformity
+6,7,8 experimental, etc
+
+_sp_num:_
+1320 MALL
+
+_ai_vai:_
+Categories to keep:
+Federal numbered metal band only. 
+Captured by spotlighting. 
+Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.
+Miscellaneous band, Federal band, plus auxiliary marker(s). 
+
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(lubridate)
+library(janitor)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(ggspatial)
+library(sf)
+```
+
+```{r}
+theme_set(theme_light())
+
+#set personalized plotting theme
+LGCtheme <- theme_light() + theme(panel.background = element_blank(), 
+                panel.grid = element_blank(), 
+                axis.text = element_text(size = 13), 
+                axis.title = element_text(size = 14), 
+                legend.text = element_text(size = 13), 
+                legend.title = element_text(size = 14), 
+                strip.background = element_blank(), 
+                strip.text = element_text(size = 13, color = "black"))
+
+gmri_qual_extended<-c("#003A54","#00608A","#5D96AF","#3F4B24","#6F7E4B","#97AA5C","#A8B212","#AF9700","#EACA00","#FFE961","#BB3F0E", "#EA4F12","#F4916B","#00736D", "#55A29E","#A0CDCB","#767676","#A7A7A7","#E2E2E2")
+```
+
+
+
+```{r}
+provs_keep<-c(43,40,04,79,45,68)
+
+provs_remove<-c(11,56,57,65,75,76,93)
+
+ai_vai_vec<-c("Federal numbered metal band only.","Captured by spotlighting.", "Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.","Miscellaneous band, Federal band, plus auxiliary marker(s).")
+
+unknown_date_tib<-tibble(r_day=c(1:31,41,42,43,51:81,99),r_day_adj=c(1:31,5,15,25,1:31,15))
+
+b_flyway_tib<-tibble(b_flyway=c(2,3,6), b_flyway_name=c("Mississippi","Central","Canada"))
+```
+## Load data
+
+```{r, echo=FALSE, message=F, warning=F}
+ca_enc<-read_csv(here::here("raw_data", "canada_encounters.csv")) %>% 
+  janitor::clean_names() %>% 
+  mutate(r_flyway_name = "Canada") %>% 
+  filter(r_region %in% provs_keep) %>% 
+  filter(b_flyway %in% c(2,3,6)) %>% 
+  filter(b_region %in% provs_remove == F)
+
+cl_enc<-read_csv(here::here("raw_data", "central_encounters.csv")) %>% 
+  janitor::clean_names() %>% 
+  mutate(r_flyway_name = "Central") %>% 
+  filter(b_flyway %in% c(2,3,6)) %>% 
+  filter(b_region %in% provs_remove == F)
+
+ms_enc<-read_csv(here::here("raw_data", "miss_encounters.csv")) %>% 
+  janitor::clean_names() %>% 
+  mutate(r_flyway_name = "Mississippi") %>% 
+  filter(b_flyway %in% c(2,3,6)) %>% 
+  filter(b_region %in% provs_remove == F)
+```
+
+## Check data
+
+```{r}
+table(ca_enc$r_flyway)
+
+table(cl_enc$r_flyway)
+
+table(ms_enc$r_flyway)
+```
+
+
+```{r}
+all_encs<-bind_rows(ca_enc, cl_enc, ms_enc) %>% 
+  left_join(b_flyway_tib, by="b_flyway")
+
+table(all_encs$how_obt) #should all be "1"
+table(all_encs$r_year)
+table(all_encs$r_month)
+table(all_encs$r_day)
+```
+## Processing code
+
+_Modifications:_
+
+* remove indv. where banding month is unknown
+
+* remove indv. where recovery month is unknown
+
+* remove indv. where banding day is unknown
+
+* join unknown_date_tib by r_day, so that r_day_adj can be used when recovery month, but not recovery date, is known
+
+* create a new column with banding date
+
+* create a new column with recovery date
+
+* limit years to 1961-2011
+
+* keep only pre-season banded birds
+
+* keep only normal, wild birds (status)
+
+* keep only known sexes (4,5)
+
+* keep only desired ai_vai's
+
+```{r}
+final_encs<-all_encs %>% 
+  filter(b_month <= 12, 
+         r_month <= 12, 
+         b_day <= 31) %>% 
+  left_join(unknown_date_tib, by="r_day") %>% 
+  mutate(b_date = as.Date(paste(b_year,b_month,b_day, sep = "-"))) %>% 
+  mutate(r_date = as.Date(paste(r_year,r_month,r_day_adj, sep = "-"))) %>% 
+  filter(b_year >=1961 & b_year <=2011) %>% 
+  filter(b_month >=6 & b_month <=9) %>% 
+  filter(status == 3) %>% 
+  filter(sex == 4 | sex == 5) %>% 
+  filter(ai_vai %in% ai_vai_vec) %>% 
+  filter(hunt_season_surv < 20) %>% 
+  dplyr::select(band,age,sex,sp_num,how_obt,pres_cond,status,hunt_season_surv,b_flyway,b_flyway_name,
+                b_date,b_year,b_month,b_day,b_region,b_dir,b_coord_precision,b_lat,b_long,gisb_lat,gisb_long,
+                r_flyway,r_flyway_name,r_date,r_year,r_month,r_day,r_region,r_dir,r_coordinate_precision,
+                r_lat,r_long,gisr_lat,gisr_long,ai_vai,everything())
+```
+
+## Visualize data
+
+```{r, fig.height=4, fig.width=10}
+final_encs %>% 
+  group_by(r_year, sex, r_flyway_name) %>% 
+  summarise(total_encountered = n()) %>% 
+  ggplot(aes(x=r_year, y=total_encountered, color=as.factor(sex))) + geom_line() + 
+  facet_wrap(~r_flyway_name, ncol=3) + 
+  scale_color_manual(values=c("#5D96AF","#C07F9C")) + LGCtheme + theme(legend.position = "none") + 
+  labs(x="Encounter Year", y="Total encountered", 
+       title="MALLs encountered in each flyway, by recovery year, by sex")
+```
+
+
+
+
+
+```{r, fig.height=4, fig.width=10}
+final_encs %>% 
+  group_by(b_year, sex, b_flyway_name) %>% 
+  summarise(total_encountered = n()) %>% 
+  ggplot(aes(x=b_year, y=total_encountered, color=as.factor(sex))) + geom_line() + 
+  facet_wrap(~b_flyway_name, ncol=3) + 
+  scale_color_manual(values=c("#5D96AF","#C07F9C")) + LGCtheme + theme(legend.position = "none") + 
+  labs(x="Banding Year", y="Total encountered", 
+       title="MALLs encountered by banding flyway, by recovery year, by sex")
+```
+
+
+```{r, fig.height=4.5, fig.width=7.5}
+final_encs %>% 
+  mutate(r_month = as.factor(r_month)) %>% 
+  group_by(r_year, r_month) %>% 
+  summarise(total_encountered = n()) %>% 
+  ggplot(aes(x=r_year, y=total_encountered, color=forcats::fct_reorder(r_month, total_encountered, .desc = T))) + 
+  geom_line() + scale_color_manual(values = gmri_qual_extended) + LGCtheme +
+  labs(x="Encounter Year", y="Total encountered", 
+       title="MALLs encountered by month", color="Encounter month")
+
+```
+
+## Spatial visualization
+
+```{r, message=F, warning=F, echo=F}
+# load in world and state sf
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+
+states <- rnaturalearth::ne_states(country = c("canada", "united states of america"), returnclass = "sf")
+
+
+#load in flyway shapefiles
+cent_flyway <- sf::st_read(here::here("shapefiles","Central_Flyway.shp")) %>% 
+  st_transform(crs = "+init=epsg:4326") 
+
+miss_flyway <- sf::st_read(here::here("shapefiles","Mississippi_Flyway.shp")) %>% 
+  st_transform(crs = 4326) 
+```
+
+
+```{r, fig.height=8, fig.width=6}
+ggplot(data = world) + geom_sf(fill="white") + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=cent_flyway, fill="grey") +
+  geom_sf(data=miss_flyway, fill="lightgrey") + 
+  geom_point(data=final_encs, aes(x=gisr_long, y=gisr_lat),size=0.85) +
+    coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE)
+```
+
+## Save datafile
+
+```{r}
+## write_csv(final_encs, here::here("proc_data","encounter_data.csv"))
+```
