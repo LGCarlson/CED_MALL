@@ -150,6 +150,12 @@ date_code_tib<-tribble(
 provs_keep<-c(43,40,04,79,45,68)
 
 ai_vai_vec<-c("Federal numbered metal band only.","Captured by spotlighting.", "Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.","Miscellaneous band, Federal band, plus auxiliary marker(s).")
+
+
+b_region_codes<-read_csv(here::here("raw_data", "region_codes.csv")) %>% 
+  filter(!is.na(region_abbrev)) %>% 
+  dplyr::select(-region_name,-flyway_code) %>% 
+  dplyr::rename("b_region" = "region_code","b_region_abbrev" = "region_abbrev")
 ```
 
 ## Load data
@@ -185,7 +191,8 @@ all_bands<-bind_rows(ca_band, cl_band, ms_band) %>%
   filter(b_month <= 12, 
          b_day_code > 0) %>% 
   left_join(date_code_tib, by = "b_day_code") %>% 
-  mutate(b_date = as.Date(paste(b_year,b_month,b_day, sep = "-"))) 
+  mutate(b_date = as.Date(paste(b_year,b_month,b_day, sep = "-"))) %>% 
+  left_join(b_region_codes, by = "b_region")
 ```
 
 ## Check data
@@ -196,6 +203,7 @@ table(all_bands$sex)
 table(all_bands$b_month)
 table(all_bands$b_day_code)
 table(all_bands$status)
+table(all_bands$b_region_abbrev)
 #table(all_bands$ai_vai)
 ```
 
@@ -222,7 +230,8 @@ final_bands<-all_bands %>%
   filter(status == 3) %>% 
   filter(sex == 4 | sex == 5) %>% 
   filter(ai_vai %in% ai_vai_vec) %>% 
-  dplyr::select(band_prefix_plus,count_of_birds,age,age_vage,sex,sp_num,status,b_flyway,b_flyway_name,b_date,b_year,b_month,b_day_code, b_day, country_code,b_region,state_code,b_dir,b_coord_prec,b_lat,b_long,gisb_lat,gisb_long, band_size,band_type,ai_vai,how_aged,how_sexed)
+  dplyr::select(band_prefix_plus,count_of_birds,age,age_vage,sex,sp_num,status,b_flyway,b_flyway_name,b_date,b_year,b_month,b_day_code, b_day, country_code,b_region,b_region_abbrev,state_code,b_dir,b_coord_prec,b_lat,b_long,
+                gisb_lat,gisb_long, band_size,band_type,ai_vai,how_aged,how_sexed)
 ```
 
 ## Visualize data
@@ -251,6 +260,22 @@ final_bands %>%
   labs(x="Banding Year", y="Total banded", 
        title="MALLs banded by month", color="Banding month")
 ```
+
+
+
+```{r, fig.height=4.5, fig.width=10}
+final_bands %>% 
+  filter(gisb_lat<40) %>% 
+  group_by(b_region_abbrev,b_month) %>% 
+  summarise(n=n()) %>% 
+  ggplot(aes(x=b_month, y=n,fill=as.factor(b_month))) + 
+    facet_wrap(~forcats::fct_reorder(b_region_abbrev,n, .fun = sum, .desc = T), scales = "free_y", ncol = 7) +
+  geom_bar(stat = "identity") + LGCtheme + theme(legend.position = "none") +
+  scale_fill_manual(values = c(gmri_qual_extended[16],gmri_qual_extended[13],
+                                              gmri_qual_extended[3],gmri_qual_extended[6])) +
+  labs(x="Banding month", y="n banded", title="Pre-season banded MALLs south of Nebraska (<40N)")
+```
+
 
 ## Spatial visualization
 

@@ -179,51 +179,59 @@ ai_vai_vec<-c("Federal numbered metal band only.","Captured by spotlighting.", "
 
 unknown_date_tib<-tibble(r_day=c(1:31,41,42,43,51:81,99),r_day_adj=c(1:31,5,15,25,1:31,15))
 
-b_flyway_tib<-tibble(b_flyway=c(2,3,6), b_flyway_name=c("Mississippi","Central","Canada"))
+r_flyway_tib<-tibble(r_flyway=c(1,2,3,4,5,6,7), 
+                     r_flyway_name=c("Atlantic","Mississippi","Central","Pacific","Alaska","Canada","Mexico"))
+
+r_region_codes<-read_csv(here::here("raw_data", "region_codes.csv")) %>% 
+  filter(!is.na(region_abbrev)) %>% 
+  dplyr::select(-region_name,-flyway_code) %>% 
+  dplyr::rename("r_region" = "region_code","r_region_abbrev" = "region_abbrev")
 ```
+
 ## Load data
 
 ```{r, echo=FALSE, message=F, warning=F}
-ca_enc<-read_csv(here::here("raw_data", "canada_encounters.csv")) %>% 
+ca_enc<-read_csv(here::here("raw_data", "encs_bandedin_canada.csv")) %>% 
   janitor::clean_names() %>% 
-  mutate(r_flyway_name = "Canada") %>% 
-  filter(r_region %in% provs_keep) %>% 
-  filter(b_flyway %in% c(2,3,6)) %>% 
+  mutate(b_flyway_name = "Canada") %>% 
   filter(b_region %in% provs_remove == F)
 
-cl_enc<-read_csv(here::here("raw_data", "central_encounters.csv")) %>% 
+cl_enc<-read_csv(here::here("raw_data", "encs_bandedin_central.csv")) %>% 
   janitor::clean_names() %>% 
-  mutate(r_flyway_name = "Central") %>% 
-  filter(b_flyway %in% c(2,3,6)) %>% 
-  filter(b_region %in% provs_remove == F)
+  mutate(b_flyway_name = "Central") 
 
-ms_enc<-read_csv(here::here("raw_data", "miss_encounters.csv")) %>% 
+ms_enc<-read_csv(here::here("raw_data", "encs_bandedin_miss.csv")) %>% 
   janitor::clean_names() %>% 
-  mutate(r_flyway_name = "Mississippi") %>% 
-  filter(b_flyway %in% c(2,3,6)) %>% 
-  filter(b_region %in% provs_remove == F)
+  mutate(b_flyway_name = "Mississippi") 
 ```
 
-## Check data
 
 ```{r}
-table(ca_enc$r_flyway)
+table(ca_enc$b_flyway);table(ca_enc$r_flyway)
 
-table(cl_enc$r_flyway)
+table(cl_enc$b_flyway);table(cl_enc$r_flyway)
 
-table(ms_enc$r_flyway)
+table(ms_enc$b_flyway);table(ms_enc$r_flyway)
 ```
 
 
 ```{r}
 all_encs<-bind_rows(ca_enc, cl_enc, ms_enc) %>% 
-  left_join(b_flyway_tib, by="b_flyway")
+  left_join(r_flyway_tib, by = "r_flyway")
+```
 
+
+
+## Check data
+
+```{r}
 table(all_encs$how_obt) #should all be "1"
 table(all_encs$r_year)
 table(all_encs$r_month)
 table(all_encs$r_day)
 ```
+
+
 ## Processing code
 
 _Modifications:_
@@ -250,6 +258,8 @@ _Modifications:_
 
 * keep only desired ai_vai's
 
+* remove birds that live unnaturally long (probably mistaken year, reported old band)
+
 ```{r}
 final_encs<-all_encs %>% 
   filter(b_month <= 12, 
@@ -264,39 +274,45 @@ final_encs<-all_encs %>%
   filter(sex == 4 | sex == 5) %>% 
   filter(ai_vai %in% ai_vai_vec) %>% 
   filter(hunt_season_surv < 20) %>% 
+  left_join(r_region_codes, by = c("b_region" = "r_region")) %>% 
+  dplyr::rename("b_region_abbrev" = "r_region_abbrev") %>% 
+  left_join(r_region_codes, by = "r_region") %>% 
   dplyr::select(band,age,sex,sp_num,how_obt,pres_cond,status,hunt_season_surv,b_flyway,b_flyway_name,
-                b_date,b_year,b_month,b_day,b_region,b_dir,b_coord_precision,b_lat,b_long,gisb_lat,gisb_long,
-                r_flyway,r_flyway_name,r_date,r_year,r_month,r_day,r_region,r_dir,r_coordinate_precision,
-                r_lat,r_long,gisr_lat,gisr_long,ai_vai,everything())
+                b_date,b_year,b_month,b_day,b_region,b_region_abbrev,b_dir,b_coord_precision,
+                b_lat,b_long,gisb_lat,gisb_long,
+                r_flyway,r_flyway_name,r_date,r_year,r_month,r_day,r_region,r_region_abbrev,r_dir,
+                r_coordinate_precision,r_lat,r_long,gisr_lat,gisr_long,ai_vai,everything())
 ```
 
 ## Visualize data
 
 ```{r, fig.height=4, fig.width=10}
 final_encs %>% 
-  group_by(r_year, sex, r_flyway_name) %>% 
+  group_by(r_year, sex, b_flyway_name) %>% 
   summarise(total_encountered = n()) %>% 
   ggplot(aes(x=r_year, y=total_encountered, color=as.factor(sex))) + geom_line() + 
-  facet_wrap(~r_flyway_name, ncol=3) + 
-  scale_color_manual(values=c("#5D96AF","#C07F9C")) + LGCtheme + theme(legend.position = "none") + 
-  labs(x="Encounter Year", y="Total encountered", 
-       title="MALLs encountered in each flyway, by recovery year, by sex")
-```
-
-
-
-
-
-```{r, fig.height=4, fig.width=10}
-final_encs %>% 
-  group_by(b_year, sex, b_flyway_name) %>% 
-  summarise(total_encountered = n()) %>% 
-  ggplot(aes(x=b_year, y=total_encountered, color=as.factor(sex))) + geom_line() + 
   facet_wrap(~b_flyway_name, ncol=3) + 
   scale_color_manual(values=c("#5D96AF","#C07F9C")) + LGCtheme + theme(legend.position = "none") + 
-  labs(x="Banding Year", y="Total encountered", 
-       title="MALLs encountered by banding flyway, by recovery year, by sex")
+  labs(x="Encounter Year", y="Total encountered", 
+       title="MALLs encountered by banding flyway, by sex")
 ```
+
+
+
+```{r, fig.height=5.5, fig.width=10}
+final_encs %>% 
+  filter(r_flyway > 0 & is.na(r_flyway) == F) %>% 
+  group_by(r_year, b_flyway_name, r_flyway_name) %>% 
+  summarise(total_encountered = n()) %>% 
+  ggplot(aes(x=r_year, y=total_encountered, color=b_flyway_name)) + geom_line() + 
+  facet_wrap(~forcats::fct_reorder(r_flyway_name,total_encountered, .fun = sum, .desc = T), ncol=4) + 
+  scale_color_manual(values=c(gmri_qual_extended[13],gmri_qual_extended[5],gmri_qual_extended[2])) + 
+  LGCtheme + theme(legend.position = "bottom") + 
+  labs(x="Encounter Year", y="Total encountered", color="Banding flyway",
+       title="MALLs encountered in each flyway, by banding flyway")
+```
+
+
 
 
 ```{r, fig.height=4.5, fig.width=7.5}
@@ -310,6 +326,26 @@ final_encs %>%
        title="MALLs encountered by month", color="Encounter month")
 
 ```
+
+
+
+```{r, fig.height=8, fig.width=5.25}
+final_encs %>% 
+  group_by(r_region_abbrev, r_flyway_name) %>% 
+  summarise(total_encountered = n()) %>% 
+  filter(!is.na(r_region_abbrev), 
+         r_region_abbrev != "Unknown") %>% 
+  ggplot(aes(x=forcats::fct_reorder(r_region_abbrev,total_encountered,.fun = sum, .desc = F), 
+          y=total_encountered, fill=forcats::fct_reorder(r_flyway_name,total_encountered,.fun = sum, .desc = T))) + 
+  geom_bar(stat = "identity") + coord_flip() +
+  scale_fill_manual(values=c(gmri_qual_extended[2],gmri_qual_extended[5],gmri_qual_extended[13],
+                    gmri_qual_extended[16],gmri_qual_extended[10],gmri_qual_extended[7],gmri_qual_extended[11])) + 
+  LGCtheme + theme(axis.text.y = element_text(size=9, angle=0)) +
+  labs(x="Postal abbreviation",y="Total encountered", title="MALLs encountered by region",fill="Region flyway") +
+  theme(legend.position = c(0.8,0.18))
+
+```
+
 
 ## Spatial visualization
 
@@ -337,6 +373,19 @@ ggplot(data = world) + geom_sf(fill="white") +
   geom_point(data=final_encs, aes(x=gisr_long, y=gisr_lat),size=0.85) +
     coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE)
 ```
+
+
+
+```{r, fig.height=8, fig.width=6}
+ggplot(data = world) + geom_sf(fill="white") + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=cent_flyway, fill="grey") +
+  geom_sf(data=miss_flyway, fill="lightgrey") + 
+  geom_point(data=final_encs, aes(x=gisb_long, y=gisb_lat),size=0.85) +
+    coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE)
+```
+
+
 
 ## Save datafile
 
