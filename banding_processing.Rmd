@@ -137,6 +137,7 @@ gmri_qual_extended<-c("#003A54","#00608A","#5D96AF","#3F4B24","#6F7E4B","#97AA5C
 
 
 ```{r}
+# Table to convert date range to center 
 date_code_tib<-tribble(
   ~b_day_code, ~b_day, 
   1, 5, 
@@ -146,12 +147,13 @@ date_code_tib<-tribble(
   5, 25, 
   6, 28)
 
-
+# Midcontinent Canadian provinces
 provs_keep<-c(43,40,04,79,45,68)
 
+# Band/capture types to keep
 ai_vai_vec<-c("Federal numbered metal band only.","Captured by spotlighting.", "Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.","Miscellaneous band, Federal band, plus auxiliary marker(s).")
 
-
+# Region (state/province) codes and names
 b_region_codes<-read_csv(here::here("raw_data", "region_codes.csv")) %>% 
   filter(!is.na(region_abbrev)) %>% 
   dplyr::select(-region_name,-flyway_code) %>% 
@@ -161,21 +163,27 @@ b_region_codes<-read_csv(here::here("raw_data", "region_codes.csv")) %>%
 ## Load data
 
 ```{r, echo=FALSE, message=F}
+# Load in Canada banding records
 ca_band<-read_csv(here::here("raw_data", "canada_banding.csv")) %>% 
   janitor::clean_names() %>% 
   mutate(b_flyway_name = "Canada") %>% 
   filter(b_region %in% provs_keep)
+      #keep only data from birds banded in mid-continent Canadian provinces
 
+# Load in Central banding records
 cl_band<-read_csv(here::here("raw_data", "central_banding.csv")) %>% 
   janitor::clean_names() %>% 
   mutate(b_flyway_name = "Central")
 
+# Load in Mississippi banding records
 ms_band<-read_csv(here::here("raw_data", "miss_banding.csv")) %>% 
   janitor::clean_names() %>% 
   mutate(b_flyway_name = "Mississippi")
 ```
 
 _Modifications:_
+
+* join all banding records 
 
 * remove indv. where banding month is unknown
 
@@ -199,17 +207,27 @@ all_bands<-bind_rows(ca_band, cl_band, ms_band) %>%
 
 ```{r}
 table(all_bands$age)
+
+# will remove all but 4 and 5
 table(all_bands$sex)
+
+# will need to remove (if unknown) or specify (approx known) non-real months
 table(all_bands$b_month)
+
+
+# will need to remove (if unknown) or specify (approx known) non-real days 
 table(all_bands$b_day_code)
+
 table(all_bands$status)
+
 table(all_bands$b_region_abbrev)
+
 #table(all_bands$ai_vai)
 ```
 
 ## Processing code
 
-_Modifications:_
+_Modifications(in order of operation):_
 
 * limit years to 1961-2011
 
@@ -234,6 +252,8 @@ final_bands<-all_bands %>%
   dplyr::select(band_prefix_plus,count_of_birds,age,age_vage,sex,sp_num,status,b_flyway,b_flyway_name,b_date,b_year,b_month,b_day_code, b_day, country_code,b_region,b_region_abbrev,state_code,b_dir,b_coord_prec,b_lat,b_long,
                 gisb_lat,gisb_long, band_size,band_type,ai_vai,how_aged,how_sexed,id) 
 
+
+#confirm that "id" field works as a unique identifier
 length(final_bands$id)
 length(unique(final_bands$id))
 ```
@@ -259,11 +279,13 @@ pac_flyway <- sf::st_read(here::here("shapefiles","Pacific_Flyway.shp")) %>%
 ```
 
 ```{r}
+#Create a summary dataframe for banding locations
 banding_locs<-final_bands %>% 
   group_by(gisb_lat,gisb_long) %>% 
   summarise(n_bands=n())
 ```
 
+Plot banding locations. Will need to remove birds banded in the Pacific flyway (outside mid-continent). 
 
 ```{r, fig.height=8, fig.width=8}
 ggplot(data = world) + geom_sf(fill="white") + 
@@ -276,23 +298,29 @@ ggplot(data = world) + geom_sf(fill="white") +
   labs(x="Banding longitude", y="Banding latitude", size="Number banded")
 ```
 
+
 ```{r}
+#Create spatial data
 final_bands_sf<-st_as_sf(final_bands, coords = c("gisb_long","gisb_lat"), crs = 4326) 
 class(final_bands_sf)
 
 length(unique(final_bands_sf$id))
 ```
 
-
+Remove encounters of birds that were *banded* in Pacific flyway.
 ```{r}
+#This selects all individuals that were banded inside the Pacific flyway shapefile
 points_inpac <- final_bands_sf[pac_flyway, ]
 
+#Creates a vector of Pacific flyway banded individuals
 to_remove<-c(points_inpac$id)
 
+
+#Creates dataframe of Pacific flyway banded individuals to plot and check for correctness
 final_bands_inpac<-final_bands %>% 
   filter(id %in% to_remove)
 
-
+#Plot to confirm
 ggplot(data = world) + geom_sf(fill="white") + 
   geom_sf(data=states, fill=NA) + 
   geom_sf(data=pac_flyway, fill="#F4916B") +
@@ -303,11 +331,14 @@ ggplot(data = world) + geom_sf(fill="white") +
 
 
 ```{r}
+#Create custom "not in" function
 `%not_in%` <- purrr::negate(`%in%`)
 
+#Remove individuals banded in Pacific flyway
 midcontinent_bands<-final_bands %>% 
   filter(id %not_in% to_remove)
 
+#Plot to confirm
 ggplot(data = world) + geom_sf(fill="white") + 
   geom_sf(data=states, fill=NA) + 
   geom_sf(data=cent_flyway, fill="#6F7E4B") +
@@ -319,7 +350,7 @@ ggplot(data = world) + geom_sf(fill="white") +
 ```
 
 
-## Save datafile
+## Save new datafile
 
 ```{r}
 ## write_csv(midcontinent_bands, here::here("proc_data","banding_data.csv"))
@@ -328,6 +359,9 @@ ggplot(data = world) + geom_sf(fill="white") +
 
 
 ## Visualize data
+
+Majority of encountered individuals banded in the midcontinent were banded in Canada.
+More males banded than females in Canada, fairly even in USA. 
 
 ```{r, fig.height=4, fig.width=10}
 midcontinent_bands %>% 
@@ -341,6 +375,7 @@ midcontinent_bands %>%
 
 
 
+Banding was restricted to pre-season, but most preseason banding occurs in August and September.
 
 ```{r, fig.height=4.5, fig.width=7.5}
 midcontinent_bands %>% 
@@ -354,7 +389,7 @@ midcontinent_bands %>%
        title="MALLs banded by month", color="Banding month")
 ```
 
-
+Visualize # of bands by state south of 40N
 
 ```{r, fig.height=4.5, fig.width=10}
 midcontinent_bands %>% 

@@ -171,17 +171,23 @@ gmri_qual_extended<-c("#003A54","#00608A","#5D96AF","#3F4B24","#6F7E4B","#97AA5C
 
 
 ```{r}
+# Midcontinent Canadian provinces
 provs_keep<-c(43,40,04,79,45,68)
 
+# Pacific or Atlantic Canadian provinces
 provs_remove<-c(11,56,57,65,75,76,93)
 
+# Band/capture types to keep
 ai_vai_vec<-c("Federal numbered metal band only.","Captured by spotlighting.", "Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.","Miscellaneous band, Federal band, plus auxiliary marker(s).")
 
+# What to do with unknown encounter dates
 unknown_date_tib<-tibble(r_day=c(1:31,41,42,43,51:81,99),r_day_adj=c(1:31,5,15,25,1:31,15))
 
+# Name flyways
 r_flyway_tib<-tibble(r_flyway=c(1,2,3,4,5,6,7), 
                      r_flyway_name=c("Atlantic","Mississippi","Central","Pacific","Alaska","Canada","Mexico"))
 
+# Region (state/province) codes and names
 r_region_codes<-read_csv(here::here("raw_data", "region_codes.csv")) %>% 
   filter(!is.na(region_abbrev)) %>% 
   dplyr::select(-region_name,-flyway_code) %>% 
@@ -191,15 +197,19 @@ r_region_codes<-read_csv(here::here("raw_data", "region_codes.csv")) %>%
 ## Load data
 
 ```{r, echo=FALSE, message=F, warning=F}
+# Load in encounters from birds banded in Canada
 ca_enc<-read_csv(here::here("raw_data", "encs_bandedin_canada.csv")) %>% 
   janitor::clean_names() %>% 
   mutate(b_flyway_name = "Canada") %>% 
   filter(b_region %in% provs_remove == F)
+          #keep only data from birds banded in mid-continent Canadian provinces
 
+# Load in encounters from birds banded in the Central flyway
 cl_enc<-read_csv(here::here("raw_data", "encs_bandedin_central.csv")) %>% 
   janitor::clean_names() %>% 
   mutate(b_flyway_name = "Central") 
 
+# Load in encounters from birds banded in the Miss flyway
 ms_enc<-read_csv(here::here("raw_data", "encs_bandedin_miss.csv")) %>% 
   janitor::clean_names() %>% 
   mutate(b_flyway_name = "Mississippi") 
@@ -207,15 +217,25 @@ ms_enc<-read_csv(here::here("raw_data", "encs_bandedin_miss.csv")) %>%
 
 
 ```{r}
-table(ca_enc$b_flyway);table(ca_enc$r_flyway)
+# Initial data check
 
-table(cl_enc$b_flyway);table(cl_enc$r_flyway)
+#should be all 6
+table(ca_enc$b_flyway)
 
-table(ms_enc$b_flyway);table(ms_enc$r_flyway)
+#should be all 3
+table(cl_enc$b_flyway)
+
+#should be all 2
+table(ms_enc$b_flyway)
+
+#can be any
+table(ca_enc$r_flyway);table(cl_enc$r_flyway);table(ms_enc$r_flyway)
 ```
 
 
 ```{r}
+#Join all encounters 
+
 all_encs<-bind_rows(ca_enc, cl_enc, ms_enc) %>% 
   left_join(r_flyway_tib, by = "r_flyway")
 ```
@@ -225,16 +245,23 @@ all_encs<-bind_rows(ca_enc, cl_enc, ms_enc) %>%
 ## Check data
 
 ```{r}
-table(all_encs$how_obt) #should all be "1"
+#should all be 1
+table(all_encs$how_obt) 
+
+# will need to remove years > 2011
 table(all_encs$r_year)
+
+# will need to remove (if unknown) or specify (approx known) non-real months
 table(all_encs$r_month)
+
+# will need to remove (if unknown) or specify (approx known) non-real days
 table(all_encs$r_day)
 ```
 
 
 ## Processing code
 
-_Modifications:_
+_Modifications (in order of operation):_
 
 * remove indv. where banding month is unknown
 
@@ -285,7 +312,9 @@ final_encs<-all_encs %>%
 ```
 
 ```{r}
+#confirm that "band" field works as a unique identifier (it should) 
 length(final_encs$band)
+
 length(unique(final_encs$band))
 # off because of those banded once, shot twice birds
 ```
@@ -311,6 +340,7 @@ pac_flyway <- sf::st_read(here::here("shapefiles","Pacific_Flyway.shp")) %>%
   st_transform(crs = 4326) 
 ```
 
+Plot banding locations. Will need to remove birds banded in the Pacific flyway (outside mid-continent). 
 
 ```{r, fig.height=8, fig.width=6}
 ggplot(data = world) + geom_sf(fill="white") + 
@@ -322,9 +352,10 @@ ggplot(data = world) + geom_sf(fill="white") +
   labs(x="Banding longitude", y="Banding latitude")
 ```
 
-Remove encounters of birds that were *banded* in Pacific flyway.
+Remove encounters of birds that were *banded* in Pacific flyway. Can be *encountered* anywhere still.
 
 ```{r}
+#Create spatial data
 final_encs_sf<-st_as_sf(final_encs, coords = c("gisb_long","gisb_lat"), crs = 4326) 
 class(final_encs_sf)
 
@@ -332,14 +363,17 @@ length(unique(final_encs_sf$band))
 ```
 
 ```{r}
+#This selects all individuals that were banded inside the Pacific flyway shapefile
 banded_inpac <- final_encs_sf[pac_flyway, ]
 
+#Creates a vector of Pacific flyway banded individuals
 enc_to_remove<-c(banded_inpac$band)
 
+#Creates dataframe of Pacific flyway banded individuals to plot and check for correctness
 final_bands_inpac<-final_encs %>% 
   filter(band %in% enc_to_remove)
 
-
+#Plot to confirm
 ggplot(data = world) + geom_sf(fill="white") + 
   geom_sf(data=states, fill=NA) + 
   geom_sf(data=pac_flyway, fill="#F4916B") +
@@ -350,11 +384,14 @@ ggplot(data = world) + geom_sf(fill="white") +
 
 
 ```{r}
+#Create custom "not in" function
 `%not_in%` <- purrr::negate(`%in%`)
 
+#Remove individuals banded in Pacific flyway
 mcb_encs<-final_encs %>% 
   filter(band %not_in% enc_to_remove)
 
+#Plot to confirm
 ggplot(data = world) + geom_sf(fill="white") + 
   geom_sf(data=states, fill=NA) + 
   geom_sf(data=cent_flyway, fill="#6F7E4B") +
@@ -370,11 +407,11 @@ ggplot(data = world) + geom_sf(fill="white") +
 length(mcb_encs$band) + length(final_bands_inpac$band)
 
 length(final_encs$band)
-#Check!
+#It does!
 ```
 
 
-## Save datafile
+## Save new datafile
 
 ```{r}
 #write_csv(mcb_encs, here::here("proc_data","encounter_data.csv"))
@@ -385,6 +422,7 @@ length(final_encs$band)
 
 
 ```{r, fig.height=8, fig.width=6}
+#Visualize encounter locations
 ggplot(data = world) + geom_sf(fill=NA) + 
   geom_sf(data=states, fill=NA) + 
   geom_sf(data=cent_flyway, fill="#6F7E4B",alpha=0.6) +
@@ -397,6 +435,9 @@ ggplot(data = world) + geom_sf(fill=NA) +
 
 ## Visualize data
 
+Majority of encountered individuals banded in the midcontinent were banded in Canada.
+More males encountered than females. 
+
 ```{r, fig.height=4, fig.width=10}
 mcb_encs %>% 
   group_by(r_year, sex, b_flyway_name) %>% 
@@ -408,7 +449,7 @@ mcb_encs %>%
        title="MALLs encountered by banding flyway, by sex")
 ```
 
-
+Majority of individuals banded in the midcontinent were encountered in the Mississippi Flyway.
 
 ```{r, fig.height=5.5, fig.width=10}
 mcb_encs %>% 
@@ -423,8 +464,7 @@ mcb_encs %>%
        title="MALLs encountered in each flyway, by banding flyway")
 ```
 
-
-
+Most individuals were ecountered during Oct, Nov, Dec, or Jan. 
 
 ```{r, fig.height=4.5, fig.width=7.5}
 mcb_encs %>% 
@@ -438,7 +478,7 @@ mcb_encs %>%
 
 ```
 
-
+More mid-continent banded mallards and encountered in Arkansas than in any other state [wenowdis](https://www.youtube.com/watch?v=2kQxVwYwrME)
 
 ```{r, fig.height=8, fig.width=5.25}
 mcb_encs %>% 
