@@ -284,10 +284,121 @@ final_encs<-all_encs %>%
                 r_coordinate_precision,r_lat,r_long,gisr_lat,gisr_long,ai_vai,everything())
 ```
 
+```{r}
+length(final_encs$band)
+length(unique(final_encs$band))
+# off because of those banded once, shot twice birds
+```
+
+
+## Spatial processing
+
+```{r, message=F, warning=F, echo=F}
+# load in world and state sf
+world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
+
+states <- rnaturalearth::ne_states(country = c("canada", "united states of america"), returnclass = "sf")
+
+
+#load in flyway shapefiles
+cent_flyway <- sf::st_read(here::here("shapefiles","Central_Flyway.shp")) %>% 
+  st_transform(crs = "+init=epsg:4326") 
+
+miss_flyway <- sf::st_read(here::here("shapefiles","Mississippi_Flyway.shp")) %>% 
+  st_transform(crs = 4326) 
+
+pac_flyway <- sf::st_read(here::here("shapefiles","Pacific_Flyway.shp")) %>% 
+  st_transform(crs = 4326) 
+```
+
+
+```{r, fig.height=8, fig.width=6}
+ggplot(data = world) + geom_sf(fill="white") + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=cent_flyway, fill="#6F7E4B") +
+  geom_sf(data=miss_flyway, fill="#00608A") + 
+  geom_point(data=final_encs, aes(x=gisb_long, y=gisb_lat),size=0.85) +
+  coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE) +
+  labs(x="Banding longitude", y="Banding latitude")
+```
+
+Remove encounters of birds that were *banded* in Pacific flyway.
+
+```{r}
+final_encs_sf<-st_as_sf(final_encs, coords = c("gisb_long","gisb_lat"), crs = 4326) 
+class(final_encs_sf)
+
+length(unique(final_encs_sf$band))
+```
+
+```{r}
+banded_inpac <- final_encs_sf[pac_flyway, ]
+
+enc_to_remove<-c(banded_inpac$band)
+
+final_bands_inpac<-final_encs %>% 
+  filter(band %in% enc_to_remove)
+
+
+ggplot(data = world) + geom_sf(fill="white") + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=pac_flyway, fill="#F4916B") +
+  geom_point(data=final_bands_inpac, aes(x=gisb_long, y=gisb_lat),size=0.85) +
+  coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE) + 
+  labs(x="Banding longitude", y="Banding latitude")
+```
+
+
+```{r}
+`%not_in%` <- purrr::negate(`%in%`)
+
+mcb_encs<-final_encs %>% 
+  filter(band %not_in% enc_to_remove)
+
+ggplot(data = world) + geom_sf(fill="white") + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=cent_flyway, fill="#6F7E4B") +
+  geom_sf(data=miss_flyway, fill="#00608A") + 
+  geom_point(data=mcb_encs, aes(x=gisb_long, y=gisb_lat),size=0.85) +
+  coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE) + 
+  labs(x="Banding longitude", y="Banding latitude")
+
+```
+
+```{r}
+# Banded in midcontinent + banded in Pacific should = length of original dataframe
+length(mcb_encs$band) + length(final_bands_inpac$band)
+
+length(final_encs$band)
+#Check!
+```
+
+
+## Save datafile
+
+```{r}
+#write_csv(mcb_encs, here::here("proc_data","encounter_data.csv"))
+```
+
+
+## Spatial visualization 
+
+
+```{r, fig.height=8, fig.width=6}
+ggplot(data = world) + geom_sf(fill=NA) + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=cent_flyway, fill="#6F7E4B",alpha=0.6) +
+  geom_sf(data=miss_flyway, fill="#00608A",alpha=0.6) + 
+  geom_point(data=mcb_encs, aes(x=gisr_long, y=gisr_lat),size=0.85) +
+  coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE) + 
+  labs(x="Encounter longitude", y="Encounter latitude")
+```
+
+
 ## Visualize data
 
 ```{r, fig.height=4, fig.width=10}
-final_encs %>% 
+mcb_encs %>% 
   group_by(r_year, sex, b_flyway_name) %>% 
   summarise(total_encountered = n()) %>% 
   ggplot(aes(x=r_year, y=total_encountered, color=as.factor(sex))) + geom_line() + 
@@ -300,7 +411,7 @@ final_encs %>%
 
 
 ```{r, fig.height=5.5, fig.width=10}
-final_encs %>% 
+mcb_encs %>% 
   filter(r_flyway > 0 & is.na(r_flyway) == F) %>% 
   group_by(r_year, b_flyway_name, r_flyway_name) %>% 
   summarise(total_encountered = n()) %>% 
@@ -316,7 +427,7 @@ final_encs %>%
 
 
 ```{r, fig.height=4.5, fig.width=7.5}
-final_encs %>% 
+mcb_encs %>% 
   mutate(r_month = as.factor(r_month)) %>% 
   group_by(r_year, r_month) %>% 
   summarise(total_encountered = n()) %>% 
@@ -330,7 +441,7 @@ final_encs %>%
 
 
 ```{r, fig.height=8, fig.width=5.25}
-final_encs %>% 
+mcb_encs %>% 
   group_by(r_region_abbrev, r_flyway_name) %>% 
   summarise(total_encountered = n()) %>% 
   filter(!is.na(r_region_abbrev), 
@@ -346,49 +457,3 @@ final_encs %>%
 
 ```
 
-
-## Spatial visualization
-
-```{r, message=F, warning=F, echo=F}
-# load in world and state sf
-world <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
-
-states <- rnaturalearth::ne_states(country = c("canada", "united states of america"), returnclass = "sf")
-
-
-#load in flyway shapefiles
-cent_flyway <- sf::st_read(here::here("shapefiles","Central_Flyway.shp")) %>% 
-  st_transform(crs = "+init=epsg:4326") 
-
-miss_flyway <- sf::st_read(here::here("shapefiles","Mississippi_Flyway.shp")) %>% 
-  st_transform(crs = 4326) 
-```
-
-
-```{r, fig.height=8, fig.width=6}
-ggplot(data = world) + geom_sf(fill="white") + 
-  geom_sf(data=states, fill=NA) + 
-  geom_sf(data=cent_flyway, fill="grey") +
-  geom_sf(data=miss_flyway, fill="lightgrey") + 
-  geom_point(data=final_encs, aes(x=gisr_long, y=gisr_lat),size=0.85) +
-    coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE)
-```
-
-
-
-```{r, fig.height=8, fig.width=6}
-ggplot(data = world) + geom_sf(fill="white") + 
-  geom_sf(data=states, fill=NA) + 
-  geom_sf(data=cent_flyway, fill="grey") +
-  geom_sf(data=miss_flyway, fill="lightgrey") + 
-  geom_point(data=final_encs, aes(x=gisb_long, y=gisb_lat),size=0.85) +
-    coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE)
-```
-
-
-
-## Save datafile
-
-```{r}
-## write_csv(final_encs, here::here("proc_data","encounter_data.csv"))
-```

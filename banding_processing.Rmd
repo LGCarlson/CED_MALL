@@ -230,54 +230,15 @@ final_bands<-all_bands %>%
   filter(status == 3) %>% 
   filter(sex == 4 | sex == 5) %>% 
   filter(ai_vai %in% ai_vai_vec) %>% 
+  mutate(id = paste(band_prefix_plus,count_of_birds,age,sex,b_date,gisb_lat,gisb_long,ai_vai,how_sexed,sep="_"))%>%
   dplyr::select(band_prefix_plus,count_of_birds,age,age_vage,sex,sp_num,status,b_flyway,b_flyway_name,b_date,b_year,b_month,b_day_code, b_day, country_code,b_region,b_region_abbrev,state_code,b_dir,b_coord_prec,b_lat,b_long,
-                gisb_lat,gisb_long, band_size,band_type,ai_vai,how_aged,how_sexed)
+                gisb_lat,gisb_long, band_size,band_type,ai_vai,how_aged,how_sexed,id) 
+
+length(final_bands$id)
+length(unique(final_bands$id))
 ```
 
-## Visualize data
-
-```{r, fig.height=4, fig.width=10}
-final_bands %>% 
-  group_by(b_year, sex, b_flyway_name) %>% 
-  summarise(total_banded = sum(count_of_birds)) %>% 
-  ggplot(aes(x=b_year, y=total_banded, color=as.factor(sex))) + geom_line() + 
-  facet_wrap(~b_flyway_name, ncol=3) + 
-  scale_color_manual(values=c("#5D96AF","#C07F9C")) + LGCtheme + theme(legend.position = "none") +
-  labs(x="Banding Year", y="Total banded", title="MALLs banded in each flyway, by banding year, by sex")
-```
-
-
-
-
-```{r, fig.height=4.5, fig.width=7.5}
-final_bands %>% 
-  mutate(b_month = as.factor(b_month)) %>% 
-  group_by(b_year, b_month) %>% 
-  summarise(total_banded = sum(count_of_birds)) %>% 
-  ggplot(aes(x=b_year, y=total_banded, color=forcats::fct_reorder(b_month, total_banded, .desc = T))) + 
-  geom_line() + scale_color_manual(values = c(gmri_qual_extended[3],gmri_qual_extended[6],
-                                              gmri_qual_extended[13],gmri_qual_extended[16])) + LGCtheme +
-  labs(x="Banding Year", y="Total banded", 
-       title="MALLs banded by month", color="Banding month")
-```
-
-
-
-```{r, fig.height=4.5, fig.width=10}
-final_bands %>% 
-  filter(gisb_lat<40) %>% 
-  group_by(b_region_abbrev,b_month) %>% 
-  summarise(n=n()) %>% 
-  ggplot(aes(x=b_month, y=n,fill=as.factor(b_month))) + 
-    facet_wrap(~forcats::fct_reorder(b_region_abbrev,n, .fun = sum, .desc = T), scales = "free_y", ncol = 7) +
-  geom_bar(stat = "identity") + LGCtheme + theme(legend.position = "none") +
-  scale_fill_manual(values = c(gmri_qual_extended[16],gmri_qual_extended[13],
-                                              gmri_qual_extended[3],gmri_qual_extended[6])) +
-  labs(x="Banding month", y="n banded", title="Pre-season banded MALLs south of Nebraska (<40N)")
-```
-
-
-## Spatial visualization
+## Spatial processing
 
 ```{r, message=F, warning=F, echo=F}
 # load in world and state sf
@@ -292,6 +253,9 @@ cent_flyway <- sf::st_read(here::here("shapefiles","Central_Flyway.shp")) %>%
 
 miss_flyway <- sf::st_read(here::here("shapefiles","Mississippi_Flyway.shp")) %>% 
   st_transform(crs = 4326) 
+
+pac_flyway <- sf::st_read(here::here("shapefiles","Pacific_Flyway.shp")) %>% 
+  st_transform(crs = 4326) 
 ```
 
 ```{r}
@@ -304,17 +268,105 @@ banding_locs<-final_bands %>%
 ```{r, fig.height=8, fig.width=8}
 ggplot(data = world) + geom_sf(fill="white") + 
   geom_sf(data=states, fill=NA) + 
-  geom_sf(data=cent_flyway, fill="grey") +
-  geom_sf(data=miss_flyway, fill="lightgrey") + 
+  geom_sf(data=cent_flyway, fill="#6F7E4B") +
+  geom_sf(data=miss_flyway, fill="#00608A") + 
+  geom_sf(data=pac_flyway, fill="#F4916B") +
   geom_point(data=banding_locs, aes(x=gisb_long, y=gisb_lat, size=n_bands)) +
   coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE) + 
   labs(x="Banding longitude", y="Banding latitude", size="Number banded")
+```
+
+```{r}
+final_bands_sf<-st_as_sf(final_bands, coords = c("gisb_long","gisb_lat"), crs = 4326) 
+class(final_bands_sf)
+
+length(unique(final_bands_sf$id))
+```
+
+
+```{r}
+points_inpac <- final_bands_sf[pac_flyway, ]
+
+to_remove<-c(points_inpac$id)
+
+final_bands_inpac<-final_bands %>% 
+  filter(id %in% to_remove)
+
+
+ggplot(data = world) + geom_sf(fill="white") + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=pac_flyway, fill="#F4916B") +
+  geom_point(data=final_bands_inpac, aes(x=gisb_long, y=gisb_lat)) +
+  coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE) + 
+  labs(x="Banding longitude", y="Banding latitude")
+```
+
+
+```{r}
+`%not_in%` <- purrr::negate(`%in%`)
+
+midcontinent_bands<-final_bands %>% 
+  filter(id %not_in% to_remove)
+
+ggplot(data = world) + geom_sf(fill="white") + 
+  geom_sf(data=states, fill=NA) + 
+  geom_sf(data=cent_flyway, fill="#6F7E4B") +
+  geom_sf(data=miss_flyway, fill="#00608A") + 
+  geom_point(data=midcontinent_bands, aes(x=gisb_long, y=gisb_lat)) +
+  coord_sf(xlim = c(-130, -70), ylim = c(25, 70), expand = FALSE) + 
+  labs(x="Banding longitude", y="Banding latitude")
+
 ```
 
 
 ## Save datafile
 
 ```{r}
-## write_csv(final_bands, here::here("proc_data","banding_data.csv"))
+## write_csv(midcontinent_bands, here::here("proc_data","banding_data.csv"))
 ```
+
+
+
+## Visualize data
+
+```{r, fig.height=4, fig.width=10}
+midcontinent_bands %>% 
+  group_by(b_year, sex, b_flyway_name) %>% 
+  summarise(total_banded = sum(count_of_birds)) %>% 
+  ggplot(aes(x=b_year, y=total_banded, color=as.factor(sex))) + geom_line() + 
+  facet_wrap(~b_flyway_name, ncol=3) + 
+  scale_color_manual(values=c("#5D96AF","#C07F9C")) + LGCtheme + theme(legend.position = "none") +
+  labs(x="Banding Year", y="Total banded", title="MALLs banded in each flyway, by banding year, by sex")
+```
+
+
+
+
+```{r, fig.height=4.5, fig.width=7.5}
+midcontinent_bands %>% 
+  mutate(b_month = as.factor(b_month)) %>% 
+  group_by(b_year, b_month) %>% 
+  summarise(total_banded = sum(count_of_birds)) %>% 
+  ggplot(aes(x=b_year, y=total_banded, color=forcats::fct_reorder(b_month, total_banded, .desc = T))) + 
+  geom_line() + scale_color_manual(values = c(gmri_qual_extended[3],gmri_qual_extended[6],
+                                              gmri_qual_extended[13],gmri_qual_extended[16])) + LGCtheme +
+  labs(x="Banding Year", y="Total banded", 
+       title="MALLs banded by month", color="Banding month")
+```
+
+
+
+```{r, fig.height=4.5, fig.width=10}
+midcontinent_bands %>% 
+  filter(gisb_lat<40) %>% 
+  group_by(b_region_abbrev,b_month) %>% 
+  summarise(n=n()) %>% 
+  ggplot(aes(x=b_month, y=n,fill=as.factor(b_month))) + 
+    facet_wrap(~forcats::fct_reorder(b_region_abbrev,n, .fun = sum, .desc = T), scales = "free_y", ncol = 7) +
+  geom_bar(stat = "identity") + LGCtheme + theme(legend.position = "none") +
+  scale_fill_manual(values = c(gmri_qual_extended[16],gmri_qual_extended[13],
+                                              gmri_qual_extended[3],gmri_qual_extended[6])) +
+  labs(x="Banding month", y="n banded", title="Pre-season banded MALLs south of Nebraska (<40N)")
+```
+
 
