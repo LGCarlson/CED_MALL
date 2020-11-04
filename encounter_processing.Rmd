@@ -181,7 +181,7 @@ provs_remove<-c(11,56,57,65,75,76,93)
 ai_vai_vec<-c("Federal numbered metal band only.","Captured by spotlighting.", "Misc. metal band (State, Provincial etc) with address or telephone number, plus Federal band.","Miscellaneous band, Federal band, plus auxiliary marker(s).")
 
 # What to do with unknown encounter dates
-unknown_date_tib<-tibble(r_day=c(1:31,41,42,43,51:81,99),r_day_adj=c(1:31,5,15,25,1:31,15))
+unknown_date_tib<-tibble(r_day=c(1:31,41,42,43,51:81,99),r_day_adj=c(1:31,9,19,28,rep(28,32)))
 
 # Name flyways
 r_flyway_tib<-tibble(r_flyway=c(1,2,3,4,5,6,7), 
@@ -256,6 +256,9 @@ table(all_encs$r_month)
 
 # will need to remove (if unknown) or specify (approx known) non-real days
 table(all_encs$r_day)
+
+# will need to remove (if unknown) or specify (approx known) non-real days
+table(all_encs$b_day)
 ```
 
 
@@ -290,13 +293,16 @@ _Modifications (in order of operation):_
 ```{r}
 final_encs<-all_encs %>% 
   filter(b_month <= 12, 
-         r_month <= 12, 
-         b_day <= 31) %>% 
+         r_month <= 12) %>% 
+  mutate(b_day = ifelse(b_day == 99, 28, b_day)) %>% 
   left_join(unknown_date_tib, by="r_day") %>% 
   mutate(b_date = as.Date(paste(b_year,b_month,b_day, sep = "-"))) %>% 
   mutate(r_date = as.Date(paste(r_year,r_month,r_day_adj, sep = "-"))) %>% 
+  mutate(r_doy = lubridate::yday(r_date)) %>% 
   filter(b_year >=1961 & b_year <=2011) %>% 
   filter(b_month >=6 & b_month <=9) %>% 
+  filter(r_month %in% c(9,10,11,12,1,2)) %>% 
+  filter(ifelse(r_month == 2, r_doy < 75, r_day < 366)) %>% 
   filter(status == 3) %>% 
   filter(sex == 4 | sex == 5) %>% 
   filter(ai_vai %in% ai_vai_vec) %>% 
@@ -414,7 +420,7 @@ length(final_encs$band)
 ## Save new datafile
 
 ```{r}
-#write_csv(mcb_encs, here::here("proc_data","encounter_data.csv"))
+## write_csv(mcb_encs, here::here("proc_data","encounter_data.csv"))
 ```
 
 
@@ -464,7 +470,7 @@ mcb_encs %>%
        title="MALLs encountered in each flyway, by banding flyway")
 ```
 
-Most individuals were ecountered during Oct, Nov, Dec, or Jan. 
+Most individuals were ecountered during Oct, Nov, Dec
 
 ```{r, fig.height=4.5, fig.width=7.5}
 mcb_encs %>% 
